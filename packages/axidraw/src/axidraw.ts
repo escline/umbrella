@@ -47,12 +47,27 @@ export const DEFAULT_OPTS: AxiDrawOpts = {
 	speedUp: 4000,
 	up: 60,
 	down: 30,
-	delayUp: 150,
-	delayDown: 150,
+	upRate: 75,
+	downRate: 50,
+	delayUp: 0,
+	delayDown: 0,
 	preDelay: 0,
 	start: [ON, PEN(), UP()],
 	stop: [UP(), HOME, OFF],
 	sigint: true,
+	penlift: 1,
+	servo_pin: 1,
+	servo_max: 27831,
+	servo_min: 9855,
+	servo_sweep_time: 200,
+	servo_move_min: 45,
+	servo_move_slope: 2.69,
+	nb_servo_pin: 2,
+	nb_servo_max: 12600,
+	nb_servo_min: 5400,
+	nb_servo_sweep_time: 70,
+	nb_servo_move_min: 20,
+	nb_servo_move_slope: 1.28,
 };
 
 export class AxiDraw implements IReset {
@@ -67,6 +82,7 @@ export class AxiDraw implements IReset {
 	homePos!: ReadonlyVec;
 	scale: number;
 	bounds?: VecPair;
+
 
 	constructor(opts: Partial<AxiDrawOpts> = {}) {
 		this.opts = { ...DEFAULT_OPTS, ...opts };
@@ -327,18 +343,19 @@ export class AxiDraw implements IReset {
 			return;
 		}
 		const [down, up] = (this.penLimits = this.penState.pop()!);
-		this.sendPenConfig(5, down);
 		this.sendPenConfig(4, up);
+		this.sendPenConfig(5, down);
 		this.opts.logger.debug("restored pen state:", this.penLimits);
 	}
 
 	penConfig(down?: number, up?: number) {
-		down = down !== undefined ? down : this.opts.down;
-		this.sendPenConfig(5, down);
-		this.penLimits[0] = down;
 		up = up !== undefined ? up : this.opts.up;
 		this.sendPenConfig(4, up);
 		this.penLimits[1] = up;
+		down = down !== undefined ? down : this.opts.down;
+		this.sendPenConfig(5, down);
+		this.penLimits[0] = down;
+		// TODO: Set pen lift servo rate (11 & 12) depending on penlift options setting
 		this.send(`SC,10,65535\r`);
 	}
 
@@ -440,6 +457,17 @@ export class AxiDraw implements IReset {
 	 * @param x
 	 */
 	protected sendPenConfig(id: number, x: number) {
+		let servo_max = this.opts.servo_max;
+		let servo_min = this.opts.servo_min;
+		let servo_sweep_time = this.opts.servo_sweep_time;
+		if (this.opts.penlift === 3) {
+			servo_max = this.opts.nb_servo_max;
+			servo_min = this.opts.nb_servo_min;
+			servo_sweep_time = this.opts.nb_servo_sweep_time;
+		}
+
+
 		this.send(`SC,${id},${(7500 + 175 * x) | 0}\r`);
 	}
+
 }

@@ -156,21 +156,33 @@ export interface AxiDrawOpts {
 	 */
 	up: number;
 	/**
-	 * Up position (%)
+	 * Down position (%)
 	 *
 	 * @defaultValue 30
 	 */
 	down: number;
 	/**
+	 * Rate of raising pen (1-100) (%)
+	 *
+	 * @defaultValue 75
+	 */
+	upRate: number;
+	/**
+	 * Rate of lowering pen (1-100) (%)
+	 *
+	 * @defaultValue 50
+	 */
+	downRate: number;
+	/**
 	 * Delay after pen up
 	 *
-	 * @defaultValue 150
+	 * @defaultValue 0
 	 */
 	delayUp: number;
 	/**
 	 * Delay after pen down
 	 *
-	 * @defaultValue 150
+	 * @defaultValue 0
 	 */
 	delayDown: number;
 	/**
@@ -218,6 +230,106 @@ export interface AxiDrawOpts {
 	 * process is terminated.
 	 */
 	sigint: boolean;
+	/**
+	 * Select the hardware configuration for the AxiDraw's pen-lift servo
+	 * mechanism. Unless changed, this option leaves your AxiDraw configured
+	 * to use its factory-standard pen-lift servo.
+	 * 
+	 * A value of 3 configures the servo output to instead (A) be directed to
+	 * output pin "B2", the third set up on the AxiDraw's EBB control board
+	 * (two positions higher than normal) and (B) produce a control signal
+	 * appropriate for a narrow-band brushless pen-lift servo motor.
+	 * 
+	 * @defaultValue 1
+	 */
+	penlift: number;
+	/**
+	 * EBB I/O pin number (port B) to control the pen-lift servo motor
+	 * Standard servo: (pin RB1)
+	 * 
+	 * @defaultValue 1
+	 */
+	servo_pin: number;
+	/**
+	 * Servo motion limits, in units of (1/12 MHz), about 83.3 ns:
+	 * Up at "100%" position. Default: 27831 83.3 ns units, or 2.32 ms.
+	 * 
+	 * @defaultValue 27831
+	 */
+	servo_max: number
+	/**
+	 * Servo motion limits, in units of (1/12 MHz), about 83.3 ns:
+	 * Down at "0%" position. Default: 9855 83.3 ns units,  or 0.82 ms.
+	 * 
+	 * @defaultValue 9855
+	 */
+	servo_min: number
+	/**
+	 * Time for servo control signal to sweep over full 0-100% range, at 100%
+	 * pen lift/lower rates. Duration, ms, to sweep control signal over 100%
+	 * range.
+	 * 
+	 * @defaultValue 200
+	 */
+	servo_sweep_time: number;
+	/**
+	 * Time (for pen lift servo to physically move) = slope * distance + min,
+	 * with a full speed sweep. Minimum time, ms, for pen lift/lower of
+	 * non-zero distance.
+	 * 
+	 * @defaultValue 45
+	 */
+	servo_move_min: number;
+	/**
+	 * Additional time, ms, per % of vertical travel.
+	 * 
+	 * @defaultValue 2.69
+	 */
+	servo_move_slope: number;
+	/**
+	 * EBB I/O pin number (port B) to control the pen-lift servo motor
+	 * Narrow-band servo: (pin RB2, two positions above the standard servo
+	 * output pins)
+	 * 
+	 * @defaultValue 2
+	 */
+	nb_servo_pin: number;
+		/**
+	 * Servo motion limits, in units of (1/12 MHz), about 83.3 ns:
+	 * Up at "100%" position. Default: 12600 83.3 ns units, or 1.05 ms.
+	 * 
+	 * @defaultValue 12600
+	 */
+	nb_servo_max: number
+	/**
+	 * Servo motion limits, in units of (1/12 MHz), about 83.3 ns:
+	 * Down at "0%" position. Default: 5400 83.3 ns units,  or 0.45 ms.
+	 * 
+	 * @defaultValue 5400
+	 */
+	nb_servo_min: number
+	/**
+	 * Time for servo control signal to sweep over full 0-100% range, at 100%
+	 * pen lift/lower rates. Duration, ms, to sweep control signal over 100%
+	 * range.
+	 * 
+	 * @defaultValue 70
+	 */
+	nb_servo_sweep_time: number;
+	/**
+	 * Time (for pen lift servo to physically move) = slope * distance + min,
+	 * with a full speed sweep. Minimum time, ms, for pen lift/lower of
+	 * non-zero distance.
+	 * 
+	 * @defaultValue 20
+	 */
+	nb_servo_move_min: number;
+	/**
+	 * Additional time, ms, per % of vertical travel.
+	 * 
+	 * @defaultValue 1.28
+	 */
+	nb_servo_move_slope: number;
 }
 
 /**
