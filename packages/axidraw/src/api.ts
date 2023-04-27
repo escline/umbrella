@@ -188,7 +188,7 @@ export interface AxiDrawOpts {
 	/**
 	 * Time in ms to subtract from actual delay time until next command
 	 *
-	 * @defaultValue 0
+	 * @defaultValue 30
 	 */
 	preDelay: number;
 	/**
@@ -330,6 +330,15 @@ export interface AxiDrawOpts {
 	 * @defaultValue 1.28
 	 */
 	nb_servo_move_slope: number;
+	/**
+	 * Time, ms, for servo motor to power down after last movement command
+	 * 
+	 * This feature requires EBB v 2.5 hardware (with USB micro not USB mini
+	 * connector), firmware version 2.6.0, and servo_pin set to 1 (only).
+	 * 
+	 * @defaultValue 60000
+	 */
+	servo_timeout: number;
 }
 
 /**

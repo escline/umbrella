@@ -33,6 +33,7 @@ import {
 import { complete, HOME, OFF, ON, PEN, UP } from "./commands.js";
 import { AxiDrawControl } from "./control.js";
 import { SERIAL_PORT } from "./serial.js";
+import { PenHandler } from "./pen_handling.js";
 
 export const DEFAULT_OPTS: AxiDrawOpts = {
 	serial: SERIAL_PORT,
@@ -68,6 +69,7 @@ export const DEFAULT_OPTS: AxiDrawOpts = {
 	nb_servo_sweep_time: 70,
 	nb_servo_move_min: 20,
 	nb_servo_move_slope: 1.28,
+	servo_timeout: 60000,
 };
 
 export class AxiDraw implements IReset {
@@ -83,11 +85,13 @@ export class AxiDraw implements IReset {
 	scale: number;
 	bounds?: VecPair;
 
+	pen: PenHandler;
 
 	constructor(opts: Partial<AxiDrawOpts> = {}) {
 		this.opts = { ...DEFAULT_OPTS, ...opts };
 		this.penLimits = [this.opts.down, this.opts.up];
 		this.scale = this.opts.stepsPerInch / this.opts.unitsPerInch;
+		this.pen = new PenHandler();
 		this.setHome(this.opts.home);
 		if (this.opts.bounds) {
 			this.bounds =
@@ -187,7 +191,7 @@ export class AxiDraw implements IReset {
 		commands: Iterable<DrawCommand>,
 		wrap = true,
 		showMetrics = true
-	) {
+	): Promise<Metrics> {
 		assert(
 			this.isConnected,
 			"AxiDraw not yet connected, need to call .connect() first"
@@ -202,22 +206,23 @@ export class AxiDraw implements IReset {
 			if (this.isPenDown) drawDist += dist;
 		};
 		const { control, logger, preDelay, refresh } = this.opts;
+
 		for (let $cmd of wrap ? complete(commands) : commands) {
 			numCommands++;
 			if (control) {
 				let state = control.deref();
 				if (state === AxiDrawState.PAUSE) {
 					const penDown = this.isPenDown;
-					if (penDown) this.penUp();
+					if (penDown) this.sendPenUp();
 					do {
 						await delayed(0, refresh);
 					} while ((state = control.deref()) === AxiDrawState.PAUSE);
 					if (state === AxiDrawState.CONTINUE && penDown) {
-						this.penDown();
+						this.sendPenDown();
 					}
 				}
 				if (state === AxiDrawState.CANCEL) {
-					this.penUp();
+					this.sendPenUp();
 					break;
 				}
 			}
@@ -252,14 +257,16 @@ export class AxiDraw implements IReset {
 					this.motorsOff();
 					break;
 				case "pen":
-					this.penConfig(a, b);
+					// this.penConfig(a, b);
+					this.pen.servo_setup(this);
+                    numCommands += 2
 					break;
 				case "u":
-					wait = this.penUp(a, b);
+					await this.pen.pen_raise(this);
 					penCommands++;
 					break;
 				case "d":
-					wait = this.penDown(a, b);
+					await this.pen.pen_lower(this);
 					penCommands++;
 					break;
 				case "save":
@@ -291,11 +298,11 @@ export class AxiDraw implements IReset {
 				await delayed(0, wait);
 			}
 			// restore one-off pen config to current state
-			if (cmd === "d" && b !== undefined) {
-				this.sendPenConfig(5, this.penLimits[0]);
-			} else if (cmd === "u" && b !== undefined) {
-				this.sendPenConfig(4, this.penLimits[1]);
-			}
+			// if (cmd === "d" && b !== undefined) {
+			// 	this.sendPenConfig(5, this.penLimits[0]);
+			// } else if (cmd === "u" && b !== undefined) {
+			// 	this.sendPenConfig(4, this.penLimits[1]);
+			// }
 		}
 		const duration = Date.now() - t0;
 		if (showMetrics) {
@@ -374,6 +381,119 @@ export class AxiDraw implements IReset {
 		this.isPenDown = true;
 		return delay;
 	}
+
+	/**
+	 * Set Pen Servo PWM channels
+	 * @param num
+	 */
+	setPwmChannels(num: number): void {
+		this.send(`SC,8,${num}\r`);
+	}
+
+	/**
+	 * Set pen up postition servo value
+	 * http://evil-mad.github.io/EggBot/ebb.html#SC
+	 * @param servo_min
+	 */
+	setPenUpPos(servo_min: number): void {
+		this.send(`SC,4,${servo_min}\r`);
+	}
+	/**
+	 * Set pen down postition servo value
+	 * http://evil-mad.github.io/EggBot/ebb.html#SC
+	 * @param servo_min
+	 */
+	setPenDownPos(servo_max: number): void {
+		this.send(`SC,5,${servo_max}\r`);
+	}
+
+	/**
+	 * Set pen up rate
+	 * http://evil-mad.github.io/EggBot/ebb.html#SC
+	 * @param pen_up_rate
+	 */
+	setPenUpRate(pen_up_rate: number): void {
+		this.send(`SC,11,${pen_up_rate}\r`);
+	}
+	/**
+	 * Set pen down rate
+	 * http://evil-mad.github.io/EggBot/ebb.html#SC
+	 * @param pen_up_rate
+	 */
+	setPenDownRate(pen_down_rate: number): void {
+		this.send(`SC,12,${pen_down_rate}\r`);
+	}
+
+	/**
+	 * New PenHandler sendPenUp method
+	 * @param delay
+	 * @param pin
+	 */
+	sendPenUp(delay?: number, pin?: number): void {
+		delay = delay !== undefined && delay >= 0 ? delay : this.opts.delayUp;
+		if (pin !== undefined) {
+			this.send(`SP,1,${delay},${pin}\r`);
+		} else {
+			this.send(`SP,1,${delay}\r`);
+		}
+		this.isPenDown = false;
+	}
+	/**
+	 * New PenHandler sendPenDown method
+	 * @param delay
+	 * @param pin
+	 */
+	sendPenDown(delay?: number, pin?: number): void {
+		delay = delay !== undefined && delay >= 0 ? delay : this.opts.delayUp;
+		if (pin !== undefined) {
+			this.send(`SP,0,${delay},${pin}\r`);
+		} else {
+			this.send(`SP,0,${delay}\r`);
+		}
+		this.isPenDown = true;
+	}
+
+	/**
+	 * Set the EBB servo motor timeout.
+	 * The EBB will cut power to the pen-lift servo motor after a given
+	 * time delay since the last X/Y/Z motion command.
+	 * It can also optionally set an immediate on/off state.
+	 * 
+	 * The time delay timeout_ms is given in ms. A value of 0 will
+	 * disable the automatic power-off feature.
+	 * 
+	 * The state parameter is given as 0 or 1, to turn off or on
+     * servo power immediately, respectively.
+	 * 
+	 * This feature requires EBB hardware v 2.5.0 and firmware 2.6.0
+	 * 
+	 * Reference: http://evil-mad.github.io/EggBot/ebb.html#SR
+	 */
+	servo_timeout(timeout_ms: number, state?: number): void {
+		if (state === undefined) {
+			this.send(`SR,${timeout_ms}\r`);
+		} else {
+			this.send(`SR,${timeout_ms},${state}\r`);
+		}
+	}
+
+	/**
+	 * Set the EBB "Layer" variable, an 8-bit number we can read and write
+	 * on the AxiDraw. Unrelate to document layers; name is an historical
+	 * artifact
+	 */
+	// setEBBLV(ebb_lv: number): void {
+	// 	this.send(`SL,${ebb_lv}\r`);
+	// }
+	/**
+	 * Query the EBB "Layer" variable, an 8-bit number we can read and write
+	 * on the AxiDraw. Unrelate to document layers; name is an historical
+	 * artifact
+	 */
+	// queryEBBLV(ebb_lv: number): number {
+	// // TODO read from serial port method
+	// 	const value = this.send(`SL,${ebb_lv}\r`);
+	// }
 
 	/**
 	 * Sends a "moveto" command (absolute coords). Returns tuple of `[duration,
@@ -457,16 +577,6 @@ export class AxiDraw implements IReset {
 	 * @param x
 	 */
 	protected sendPenConfig(id: number, x: number) {
-		let servo_max = this.opts.servo_max;
-		let servo_min = this.opts.servo_min;
-		let servo_sweep_time = this.opts.servo_sweep_time;
-		if (this.opts.penlift === 3) {
-			servo_max = this.opts.nb_servo_max;
-			servo_min = this.opts.nb_servo_min;
-			servo_sweep_time = this.opts.nb_servo_sweep_time;
-		}
-
-
 		this.send(`SC,${id},${(7500 + 175 * x) | 0}\r`);
 	}
 
