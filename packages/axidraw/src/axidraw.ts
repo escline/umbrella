@@ -34,6 +34,7 @@ import { complete, HOME, OFF, ON, PEN, UP } from "./commands.js";
 import { AxiDrawControl } from "./control.js";
 import { SERIAL_PORT } from "./serial.js";
 import { PenHandler } from "./pen_handling.js";
+import { ReadlineParser } from "serialport";
 
 export const DEFAULT_OPTS: AxiDrawOpts = {
 	serial: SERIAL_PORT,
@@ -74,6 +75,7 @@ export const DEFAULT_OPTS: AxiDrawOpts = {
 
 export class AxiDraw implements IReset {
 	serial!: ISerial;
+	parser?: ReadlineParser;
 	opts: AxiDrawOpts;
 	isConnected = false;
 	isPenDown = false;
@@ -139,6 +141,10 @@ export class AxiDraw implements IReset {
 			) {
 				this.opts.logger.info(`using device: ${port.path}...`);
 				this.serial = this.opts.serial.ctor(port.path, 38400);
+				this.parser = this.serial.pipe(new ReadlineParser());
+				this.parser && this.parser.on('data', (data: string) => {
+					if (data.substring(0,2) !== 'OK') this.opts.logger.warn(`Non-OK response: ${data}`);
+				});
 				this.isConnected = true;
 				if (this.opts.sigint) {
 					this.opts.logger.debug("installing signal handler...");
@@ -294,7 +300,7 @@ export class AxiDraw implements IReset {
 			}
 			if (wait > 0) {
 				wait = Math.max(0, wait - preDelay);
-				logger.debug(`waiting ${wait}ms...`);
+				// logger.debug(`waiting ${wait}ms...`);
 				await delayed(0, wait);
 			}
 			// restore one-off pen config to current state

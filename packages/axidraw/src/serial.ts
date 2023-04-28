@@ -1,5 +1,5 @@
 import { illegalState } from "@thi.ng/errors/illegal-state";
-import { SerialPort } from "serialport";
+import { SerialPort, ReadlineParser  } from "serialport";
 import type { ISerial, SerialConnection } from "./api.js";
 
 /**
@@ -8,6 +8,7 @@ import type { ISerial, SerialConnection } from "./api.js";
 export const SERIAL_PORT: SerialConnection = {
 	list: () => SerialPort.list(),
 	ctor: (path, baudRate) => new SerialPort({ path, baudRate }),
+	reader: () => new ReadlineParser(),
 };
 
 /**
@@ -17,6 +18,7 @@ export const SERIAL_PORT: SerialConnection = {
 export const MOCK_SERIAL: SerialConnection = {
 	list: async (path) => [{ path }],
 	ctor: () => new MockSerial(),
+	reader: () => new ReadlineParser(),
 };
 
 /**
@@ -45,5 +47,9 @@ export class MockSerial implements ISerial {
 	write(msg: string): void {
 		this.isClosed && illegalState("connection already closed");
 		this.sent.push(msg);
+	}
+
+	pipe(_parser: ReadlineParser): void {
+		return;
 	}
 }

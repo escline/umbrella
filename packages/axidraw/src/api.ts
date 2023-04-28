@@ -2,6 +2,7 @@ import type { IDeref } from "@thi.ng/api";
 import type { ILogger } from "@thi.ng/logger";
 import type { Quantity } from "@thi.ng/units";
 import type { ReadonlyVec } from "@thi.ng/vectors";
+import type { ReadlineParser } from "serialport";
 
 /** Start command sequence (configurable via {@link AxiDrawOpts}) */
 export type StartCommand = ["start"];
@@ -439,6 +440,10 @@ export interface SerialConnection {
 	 * @param baudRate
 	 */
 	ctor(path: string, baudRate: number): ISerial;
+	/**
+	 * Returns ReadlineParser for reading from serial port (once connected)
+	 */
+	reader(): ReadlineParser;
 }
 
 export interface ISerial {
@@ -449,4 +454,5 @@ export interface ISerial {
 	 * @param msg
 	 */
 	write(msg: string): void;
+	pipe(parser: ReadlineParser): any;
 }
